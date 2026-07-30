@@ -1,0 +1,35 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "orchestrate-skill",
+  "owner": {
+    "name": "Giusse Macri",
+    "email": "mgiu96411@hotmail.com"
+  },
+  "metadata": {
+    "description": "Orchestration pipeline skill for complex implementations in Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "orchestrate",
+      "source": "./",
+      "description": "Complexity-triaged orchestration pipeline for complex implementations — batch intake, investigation, design council, spec + spec review, planning, multi-agent implementation, and adversarial review with an optional codex cross-vendor round.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Giusse Macri",
+        "email": "mgiu96411@hotmail.com"
+      },
+      "homepage": "https://github.com/mgiu96411/orchestrate-skill",
+      "repository": "https://github.com/mgiu96411/orchestrate-skill",
+      "license": "MIT",
+      "keywords": [
+        "claude-code",
+        "orchestration",
+        "subagents",
+        "pipeline",
+        "planning",
+        "code-review"
+      ],
+      "category": "workflow"
+    }
+  ]
+}

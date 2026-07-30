@@ -37,7 +37,14 @@ Key design rules:
 
 ## Install
 
-Copy the skill into your Claude Code skills directory:
+As a plugin (recommended — this repo is its own marketplace):
+
+```
+/plugin marketplace add mgiu96411/orchestrate-skill
+/plugin install orchestrate@orchestrate-skill
+```
+
+Or copy the skill directly into your Claude Code skills directory:
 
 ```bash
 mkdir -p ~/.claude/skills
@@ -45,7 +52,7 @@ cp -R skills/orchestrate ~/.claude/skills/
 ```
 
 Then either let it self-trigger on complex requests, or invoke it explicitly
-with `/orchestrate`.
+(`/orchestrate` as a plugin, or via the Skill tool as a copied skill).
 
 ## Dependencies (all optional)
 
