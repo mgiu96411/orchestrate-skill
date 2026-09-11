@@ -1,84 +1,98 @@
 ---
 name: orchestrate
-description: Use when the user requests a complex implementation — multi-file feature, new subsystem, cross-cutting refactor, or ambiguous scope — or sends a batch of several fixes/features in one message, before writing any code. Also on explicit request ("orchestrate", "full pipeline", "spec this properly").
+description: Coordinate complex implementations, cross-cutting refactors, new subsystems, and batches of fixes through scoped investigation, planning, implementation, and independent review. Use before code changes for these tasks, or on explicit orchestrate requests. Simple tasks use the small-task bypass.
 ---
 
-# Orchestrate — Complex Task Pipeline
+# Orchestrate
 
-## Overview
+The main agent owns scope, decisions, integration, and completion. Workers implement; auditors investigate findings and report them back. Specs, plans, and evidence live in files so work can resume after context loss. Use the current host's tools and configured models; do not assume Claude is the orchestrator or Codex is only a reviewer.
 
-The main-loop model is orchestrator and planner. Subagents investigate, review, and implement; the orchestrator makes every decision. Specs and plans live in files, never only in conversation context.
+## Autonomy default
 
-While this pipeline is active, its triage gate owns the ceremony level: sub-skills listed below are invoked when their trigger fires, not when their own description self-triggers. A small-tier task loads zero sub-skills.
+Starting orchestrate means carry the requested work through to completion within its authorized scope. Do not ask for permission to start, approve the tier/spec/plan, move between phases, choose ordinary implementation details, or apply confirmed reviewer fixes. Plan and review files are working artifacts, not approval gates, unless the user explicitly requested a gate.
 
-## Phase 0 — Triage (the gate)
+Investigate uncertainty, choose reasonable assumptions and reversible defaults, record consequential choices, and continue. Worker questions and reviewer disagreements go to the orchestrator. Resolve factual gaps through investigation; bring material unresolved assumptions, competing approaches, and judgment calls to the user's agent council via [council.md](references/council.md), at whichever phase they arise. The council challenges the options; the orchestrator adopts an evidence-backed decision and continues. Interrupt the user only for a required fact, authorization, or human action that cannot be resolved from available evidence and prevents safe progress; continue useful independent work first. Existing authorization persists, and the host's actual permission rules still apply.
 
-Estimate complexity before committing to the pipeline, and state the tier chosen (one line, with why):
+## 0. Triage before edits
 
-- **Small** (1–2 files, clear scope): skip the pipeline entirely. Implement directly (own edit or one small-edit subagent).
-- **Medium** (3–5 files, known patterns): phases 1 → 5 → 6 → 7 → 8. Skip council, spec, and spec panel.
-- **Large** (new subsystem, cross-cutting, ambiguous, or risky): full pipeline.
+Say `Using orchestrate — <tier>: <reason>` once. Classify by behavior, dependencies, and risk; file counts are hints, not thresholds.
 
-When genuinely in doubt between tiers, ask before spending.
+- **Small:** clear, localized, low-risk edit. Implement and verify directly. No council, plan file, sub-skill loading, or mandatory reviewer. If an auditor is already involved, its findings still return to the worker.
+- **Medium:** known patterns with several connected changes. Investigate → plan → implement → review → wrap.
+- **Large:** new subsystem, substantial ambiguity, or consequential cross-cutting behavior. Add design council, spec, and spec review before planning.
 
-## Phase −1 — Batch intake (multi-item requests)
+Re-triage follow-ups when scope or risk changes, not on every message. Resolve ordinary uncertainty with a proportionate investigation and reasonable assumptions under the autonomy default above.
 
-When one message contains several distinct items, run this BEFORE the gate:
+Locate the owning subproject, Git root, current changes, and existing plan conventions. Identify persistent-data mutations, integration dependencies, and human-only steps early. Preserve the user's requested scope and existing authorization. A council cannot silently remove a requested capability or grant permission for an external action. Prepare a concrete reversible or restorable approach before any unresolved irreversible operation.
 
-1. **Sweep the smalls.** Items that would gate as small (copy fixes, one-liners, trivial UI tweaks) get fixed immediately, before any pipeline — instant visible wins, and it exercises the deploy path before anything risky ships. Verify each sweep fix directly (view/run it); when a pipeline run follows, its review diff includes the sweep changes. A sweep item that turns out non-trivial mid-edit stops, reverts if half-done, and joins or forms a cluster — note the re-gate in the intake file.
-2. **Cluster provisionally.** Group the rest by shared subsystem / data model. Clustering is a hypothesis, not a commitment — investigation may re-cluster it.
-3. **Investigate once, shared.** One phase-1 pass over the union of remaining items. Revise clusters and order with what it finds.
-4. **Order by information, then dependency.** Cheapest probes first: a bug that touches a shared model, or a research item, runs before the features that must build on its findings — its results reorder everything downstream. Foundations before dependent UI.
-5. **Write the intake file** `<project>/plans/YYYY-MM-DD-<slug>-intake.md`: item list verbatim, cluster map, order with reasons, per-cluster tier and status. This file is the canonical batch tracker (survives compaction and `/clear`); mirror items to your task board when one is available — the board holds the tasks, the intake file holds batch-execution state. In a multi-subproject workspace it lives in the subproject owning most of the batch; items belonging elsewhere keep their specs/plans in their own subproject's `plans/`.
-6. **Run the pipeline per cluster, sequentially — never in parallel.** Shared files across clusters make parallel execution merge hell. Each cluster passes the phase-0 gate on its own (a small cluster gets the stripped path; council/spec panel only for large clusters). The spec — or just the plan, for medium clusters — is written just-in-time when its cluster starts, never upfront for later clusters, because earlier clusters' findings invalidate speculative specs.
-7. **Delta re-check between clusters (load-bearing, not optional).** Re-diff the investigation's file/line refs against current code — an earlier cluster's review-&-fix may have rewritten lines a later plan cites. Re-cluster or re-order if warranted; note it in the intake file. Then checkpoint: commit, update intake file + board, one-paragraph report. Continue autonomously unless scope changed or the user asked to gate between clusters.
+## Batch intake
 
-## Sub-skill registry
+For several distinct requests:
 
-Invoke the live skill when installed and its trigger fires; if missing, use the fallback and continue — never abort the pipeline over an absent plugin. Refs are fully qualified (`plugin:skill`) so lookalike plugins never substitute. Triggers apply only inside a running pipeline (medium/large); small tier loads nothing. Rows marked (agent) are subagent types dispatched via the Agent tool, not `Skill(...)`. Install sources and vendored fallback copies: see the repository README.
+1. Record the original items and status in `plans/YYYY-MM-DD-<slug>-intake.md` (or the project's existing planning location).
+2. Sweep independent small edits and verify directly. If an item expands, preserve valid work and reclassify it; do not revert other work. Include sweep changes in the eventual review.
+3. Investigate the remaining items together, then cluster by shared model/subsystem. Run cheap probes before decisions that depend on them.
+4. Execute clusters sequentially when they share state or files. Write each cluster's plan just before it starts; do not speculate every later spec upfront.
+5. Between clusters, re-check cited files, interfaces, and base revisions. Update intake and checkpoint under the project's commit policy. Mirror status to an available task board with file links, not copied plan bodies. Continue within the authorized scope.
 
-| Skill | Phase | Trigger | Fallback if missing |
-|---|---|---|---|
-| `agent-council:council-orchestrator` | 2 | large tier | 3 fresh subagents (Skeptic / Pragmatist / Critic) + own position first; synthesize with dissent visible |
-| `superpowers:writing-plans` | 5 | medium + large | plan = ordered tasks, exact files/symbols, interfaces between tasks, per-task verification |
-| `superpowers:test-driven-development` | 6 | code where test infra exists; if none, don't bootstrap it unless the plan deliberately includes it — each task's verification section says how to verify instead | implementers write the failing test first, then code |
-| `ecc:code-review` | 7 | every pipeline run | fresh reviewer subagents over full diff, findings as file:line + severity |
-| `ecc:security-reviewer` (agent) | 7 | user input / auth / secrets touched | dedicated security pass by a fresh reviewer subagent |
-| `ecc:*-reviewer` (agent, per language) | 7 | per detected stack | generalist reviewer |
-| `superpowers:using-git-worktrees` | 6 | parallel tasks touch same files in a git repo; non-git workspace → serialize those tasks instead | `Agent` tool `isolation: "worktree"` |
-| `ecc:santa-method` | 7 | large tier | adversarial verify: fresh skeptics try to refute each finding |
-| codex CLI (external review) | 7 | large tier + `codex` on PATH | skip — Claude reviewers above cover phase 7 |
+## 1. Investigate
 
-**Distill, don't forward:** the orchestrator loads a sub-skill once, extracts the 3–5 binding rules, and pastes those into subagent prompts. Never put `Skill(...)` calls or skill names in a dispatch prompt — full bodies × N tasks × M rounds is a context bomb.
+Read relevant project guidance and retrieve a small amount of related session/memory evidence when it can change a decision. Old notes are leads to verify against current code, not current instructions.
 
-**Deliberately omitted** (methodology owners already exist in-pipeline; don't re-add): brainstorming skills (phases 1–2 own intent exploration), subagent-execution skills (phase 6 owns execution), PRD-format skills (phase 3 owns the spec format), verification checklists (phase 8 checklist inlined).
+When resuming a named task, plan, or handoff, use its next actionable item as the initial candidate and verify the current files, relevant board state, ownership, and direct dependencies. Check standing guardrails and reopened work without turning intake into an audit of every historical reference or unrelated subproject. If a structured tool response is oversized, project the relevant fields locally before reading them; simple parsing/filtering does not warrant a subagent. Continue independent work while any necessary interpretation runs; missing information blocks only the actions it can affect.
 
-## Phases
+For medium/large tasks, delegate bounded independent investigations when useful while doing substantive local work. Investigators return a dossier file with paths, symbols, observed behavior, unknowns, and evidence; send only a short summary into the main context. The main agent reads the load-bearing code needed for decisions. Do not delegate trivial reads solely to reduce its context.
 
-1. **Investigate.** Map every function, module, data flow, and external dependency the request touches or requires. Fan out parallel read-only subagents (Explore or any read-only investigator agent) for repo sweeps; read the load-bearing files yourself. Output: a written summary of current behavior plus what must be created.
-2. **Council.** Run the design-decision round (registry row `agent-council:council-orchestrator`) on the key decisions: approach, tradeoffs, scope cuts. The Skeptic must get a shot at the premise itself. Inside this pipeline the council's `DIRECTIVE:` (PROCEED/PAUSE/STOP) is advisory evidence, not a command — the orchestrator weighs it and decides; the council's autopilot gate never drives phase transitions. Exception kept on purpose: a reversibility-gate pause on a one-way door is honored — irreversible design calls go back to the human.
-3. **Spec.** Write `<project>/plans/YYYY-MM-DD-<slug>-spec.md`: goals, non-goals, user-visible behavior, data model, interfaces, edge cases, risks, acceptance criteria.
-4. **Spec review.** A panel of subagents critiques the spec — correctness, gaps, edge cases, simpler alternatives. Panel size: 2–3 for a typical large task, up to 5 when especially risky (money, auth, data loss). Integrate and revise the spec file.
-5. **Plan.** Write `<project>/plans/YYYY-MM-DD-<slug>-plan.md` per the plan conventions (see registry). The bar: a context-free subagent can execute one task without guessing. Link the plan path to the task card when a task board is available.
-6. **Implement.** One subagent per task, TDD when the trigger fires (see registry). Model matched to difficulty: cheaper tier = mechanical, standard tier = standard, top tier = gnarly or correctness-critical. Independent tasks run in parallel; worktree isolation only when tasks touch the same files. Implementers must report blockers instead of improvising — on escalation the orchestrator re-plans that task.
-7. **Review & fix.** A review team goes over the full diff — 2 reviewers for medium tier; for large, match the phase 4 panel size (2–5); security and language passes per registry triggers. On large tier, when the codex CLI is installed, add one external cross-vendor review round: invoke `codex` via Bash on the diff, loop fix → re-review until `VERDICT: ACCEPT` (counts toward the round cap). Codex reviews read-only — it never runs tests; test/build verification stays on the Claude side. Adversarially verify findings before fixing — large tier per the registry (`ecc:santa-method`); medium tier: one fresh skeptic subagent over the disputed findings is enough. Fix the confirmed ones. Hard cap: 2 review-fix rounds; anything left over becomes a report plus task-board cards.
-8. **Wrap.** Verify end-to-end (run the app or tests — evidence, not assumption), update the task board and memory when available, commit per your commit policy.
+## 2–4. Design and spec (large only)
 
-## Rules
+Write your initial position, then run the user's `agent-council:council-orchestrator` through [council.md](references/council.md), using its actual role definitions, tier selection, and synthesizer. Do not replace an available custom council with a generic reviewer panel. This scheduled design round is for large tasks; a focused council can also resolve a material question that arises during a medium task. A localized task whose uncertainty warrants council should be re-triaged first. Council verdicts are evidence; resolve their concerns, record the chosen approach, and continue under the autonomy default.
 
-- The orchestrator never outsources decisions — subagents supply evidence and drafts, not verdicts.
-- The plan — and the spec, when the tier runs phase 3 — MUST exist as files under `plans/` before phase 6 starts (they must survive compaction).
-- Agent-tool fan-outs are the default. Heavier multi-agent orchestration tooling only when the user explicitly opted in — never from an auto-trigger.
-- Scale down honestly: council and spec panel exist to catch design mistakes, not to perform rigor.
-- Checkpoint commits assume the subproject (not necessarily the workspace root) is a git repo; if no level is a repo, flag it at intake instead of silently skipping checkpoints.
+Write a spec covering goals, non-goals, user-visible behavior, data/interfaces, edge cases, acceptance criteria, and recovery for consequential mutations. Have 2–3 fresh reviewers critique it, then resolve the material gaps. Previously authorized design choices do not require another approval merely because a council calls them irreversible. Resolve scope details through investigation and reasonable assumptions; escalate only a genuine blocker under the autonomy default above.
 
-## Common mistakes
+## 5. Plan
 
-- Full pipeline on a medium task — burns hours and money; use the gate.
-- All batch specs written upfront — bug fixes and research findings invalidate them; spec just-in-time per cluster.
-- Clusters run in parallel on shared files — merge hell; sequential is the design, not a compromise.
-- One mega-spec for a whole batch — no early wins, dies at compaction.
-- Skill names inside dispatch prompts — distill binding rules instead.
-- Plan body pasted into a board card — link the path only.
-- "Loop until clean" with no cap — 2 rounds max.
-- Spec kept only in chat — dies at compaction.
+Before implementation, save and verify `plans/YYYY-MM-DD-<slug>-plan.md`, or use the project's existing equivalent. Include ordered tasks, owning worker, precise files/symbols, interfaces, acceptance examples, verification, and prerequisites. Link the spec when one exists. A plan written after code changes is a retrospective record, not evidence of planning before implementation. Keep tasks small enough to complete with a focused brief; split at dependency boundaries, not arbitrary token counts.
+
+Load [execution.md](references/execution.md) before dispatching workers or preparing isolated checkouts. It defines briefs, base checks, concise reports, and interruption handling.
+
+## 6. Implement
+
+Assign one owner per write set. Independent tasks may run concurrently; overlapping edits serialize or use separate checkouts with an explicit integration order. One worker may own several tightly coupled tasks. The main agent may implement when delegation adds no value, but independent review still applies to medium/large work. State a material departure from the plan and why.
+
+When existing test infrastructure supports a meaningful behavioral check, reproduce the failure before fixing it. Do not bootstrap test infrastructure or add tests that merely mirror a cosmetic edit unless the plan calls for it. Workers report evidence and blockers rather than silently changing scope.
+
+## 7. Review and fix
+
+Load [review.md](references/review.md). Medium tasks normally use one independent auditor plus targeted validation of disputed findings; add another for distinct uncovered risk. Large tasks normally use 2–3 complementary auditors. Give them the literal request, acceptance criteria, complete review diff including sweep changes, and relevant code; do not prime them with the worker's claim that it is correct.
+
+**Large tasks require an independent cross-provider review of the final changes.** Use the authorized alternate provider when available: Claude-led work uses Codex; Codex-led work uses Claude. Count this reviewer within the panel, not as another mandatory panel. Resolve availability and authorization during planning using [provider-review.md](references/provider-review.md). Medium tasks may use it when risk warrants; small tasks retain their bypass. An unavailable, denied, or failed review stays visibly pending unless the user explicitly waives it; continue unaffected work and do not report the full pipeline complete.
+
+**Auditors never edit product files, including trivial fixes.** They report findings and evidence. The main agent triages them and sends confirmed findings to the owning worker, preferably the same worker, who fixes and reports verification. The auditor rechecks the changed result. A replacement worker gets a concise handoff if the original is unavailable. If the main agent was the implementer, it receives the feedback as the worker; it must not claim its own check was independent.
+
+Use at most two broad review/fix rounds. After that, stop repeated whole-diff panels: replan remaining blockers and use focused fixes/rechecks. The cap does not permit declaring unresolved required behavior complete. Report any actual blocker and the next action.
+
+## 8. Wrap and capture
+
+Verify the requested behavior on the final integrated state. Distinguish static checks, automated tests, local user-flow checks, deployment confirmation, and live-flow checks. A successful build or served version string is not proof the user flow works. If deployment was requested and authorized, replay the relevant flow on the deployed version; otherwise state the actual verification boundary. Discover missing credentials or human-only steps during planning, and surface any remaining blocker clearly.
+
+Keep a compact phase record in the plan: actual participants, provider/model when exposed, tool/run identifier, evidence artifact, and result or pending reason. Unknown model identity stays unknown; a role label or requested model is not proof of the model used. Map every original batch acceptance item to final evidence, including failures and omissions; passing a subset does not complete the batch.
+
+Update intake/plan, relevant board, and commit according to the project's policy. Report outcome, meaningful checks, and remaining limitations. Keep skill usage/skip reasons in the plan for triggered dependencies, not a user-facing receipt for every possible skill.
+
+When a correction, failed approach, process deviation, or reusable success occurred, read [learning.md](references/learning.md) and capture a short evidence-linked lesson. No automatic rewrite of global policy during ordinary implementation. Use the companion `retro` skill when the user requests workflow improvement.
+
+## Optional methodology dependencies
+
+Inside an active pipeline, orchestrate's tier owns ceremony. Load an available relevant skill once, extract its binding rules into briefs, and avoid distributing whole skill bodies to each worker. If a dependency is absent, incompatible with the host, or temporarily unavailable, use the fallback and record the reason. Do not call an installed usable dependency absent merely to skip it.
+
+| Capability / known skill | When | Fallback |
+|---|---|---|
+| `agent-council:council-orchestrator` | Large design round; material unresolved assumptions or judgment calls at any phase | Resolve the configured source and dispatch its actual role definitions; generic perspectives only if those resources are unavailable, with that limitation recorded |
+| `superpowers:writing-plans` | Medium/large plan | Ordered tasks, exact symbols, interfaces, per-task checks |
+| `superpowers:test-driven-development` | Meaningful behavior tests with existing infrastructure | Reproduce failure, implement, verify regression |
+| `superpowers:using-git-worktrees` | Isolated Git work | Explicit base revision + clean checkout validation per execution reference |
+| `ecc:code-review` or equivalent | Medium/large review | Independent auditor over the full scoped diff |
+| `ecc:security-reviewer`, language reviewers | Relevant risk or unfamiliar runtime | Auditor focused on the affected trust boundary/runtime |
+| `ecc:santa-method` | Large-task disputed findings | Fresh skeptical reproduction/counterexample pass |
+
+Use currently exposed tool names. Codex task creation tools are for user-requested standalone tasks, not internal subagents. Launching Codex from Codex does not create cross-provider independence. Missing tooling reduces the available evidence, never turns an unperformed check into a pass.

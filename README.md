@@ -1,95 +1,45 @@
 # orchestrate
 
-A Claude Code skill that turns the main model into an **orchestrator** for
-complex implementations: it triages every request by complexity, and — when the
-work is big enough to deserve it — runs a full pipeline of investigation,
-design council, spec, spec review, planning, multi-agent implementation, and
-adversarial review, with every decision kept in the orchestrator's hands.
+A shared Claude Code and Codex skill for complex implementations. The main agent owns decisions; workers implement; independent auditors return every product finding to the owning worker, including trivial fixes.
 
-Small tasks pass through untouched. That's the point: the triage gate makes it
-cheap to invoke on borderline requests.
+The entrypoint chooses small, medium, or large based on behavior and risk. Small edits bypass the pipeline. Medium tasks use investigation, a saved plan, implementation, and independent review. Large tasks add design council and spec review. Batch clusters execute in dependency order with their state saved in files.
 
-## The pipeline
+## Local installation
 
-```
-Phase −1  Batch intake     — sweep trivial items, cluster the rest, order by information
-Phase 0   Triage gate      — small (skip pipeline) / medium (slim path) / large (full)
-Phase 1   Investigate      — parallel read-only subagents map the territory
-Phase 2   Council          — adversarial design review of the key decisions   (large only)
-Phase 3   Spec             — written to plans/, survives context compaction   (large only)
-Phase 4   Spec review      — 2–5 critic subagents                             (large only)
-Phase 5   Plan             — ordered tasks a context-free subagent can execute
-Phase 6   Implement        — one subagent per task, TDD, parallel where safe
-Phase 7   Review & fix     — reviewer panel + security pass + optional codex
-                             cross-vendor review; findings adversarially verified
-Phase 8   Wrap             — end-to-end verification with evidence, then commit
+Use this repository as the canonical source. Link the skill folders into the host's discovery directory so edits cannot drift between copies. If a destination already exists, inspect and back it up before replacing it.
+
+```sh
+# Run from this repository. These commands expect unused destination names.
+mkdir -p "$HOME/.agents/skills" "$HOME/.claude/skills"
+ln -s "$PWD/skills/orchestrate" "$HOME/.agents/skills/orchestrate"
+ln -s "$PWD/skills/retro" "$HOME/.agents/skills/retro"
+ln -s "$PWD/skills/orchestrate" "$HOME/.claude/skills/orchestrate"
+ln -s "$PWD/skills/retro" "$HOME/.claude/skills/retro"
 ```
 
-Key design rules:
+Invoke `orchestrate` or `retro` by name in the host's skill selector or prompt (`$orchestrate` / `$retro` in Codex; `/orchestrate` / `/retro` in Claude Code). When Codex recognizes the repository plugin namespace, the selector names are `orchestrate:orchestrate` and `orchestrate:retro` (verified on this installation). A concise global `AGENTS.md` or `CLAUDE.md` rule can request orchestrate for complex implementation work. If discovery does not refresh, restart the host. Verify the skill appears in the actual available-skills list; readable files alone do not prove discovery.
 
-- **The orchestrator never outsources decisions.** Subagents supply evidence
-  and drafts, not verdicts.
-- **Specs and plans are files, not chat.** Everything load-bearing lives under
-  `plans/` and survives `/clear` and context compaction.
-- **Batches run sequentially per cluster.** Parallel clusters on shared files
-  are merge hell; sequential is the design.
-- **Review loops are capped.** Two review-fix rounds, then a report.
+The existing Claude plugin packaging remains available:
 
-## Install
-
-As a plugin (recommended — this repo is its own marketplace):
-
-```
+```text
 /plugin marketplace add mgiu96411/orchestrate-skill
 /plugin install orchestrate@orchestrate-skill
 ```
 
-Or copy the skill directly into your Claude Code skills directory:
+Plugin installations use the published version, which may differ from local uncommitted edits. Avoid duplicate active copies of the same skill.
 
-```bash
-mkdir -p ~/.claude/skills
-cp -R skills/orchestrate ~/.claude/skills/
-```
+## Learning loop
 
-Then either let it self-trigger on complex requests, or invoke it explicitly
-(`/orchestrate` as a plugin, or via the Skill tool as a copied skill).
+Orchestrate appends meaningful lessons to the private shared journal at `~/.local/share/orchestrate/RETRO-NOTES.md`. `retro` reviews unprocessed notes and representative session evidence on request, makes scoped changes when authorized, tests them against realistic scenarios, and records consumed evidence in `RETRO-LOG.md`. It preserves notes and a backlog instead of discarding records or pretending every session was reviewed.
 
-## Dependencies (all optional)
+Private transcripts, client data, retrospective reports, and backups stay outside this repository. No recurring background job is installed. Memory connectors are optional; a host with search-only access uses the local journal for writes.
 
-The skill's sub-skill registry references a few plugins. **Every row has a
-built-in fallback** — the pipeline runs fine with none of them installed; the
-plugins just make each phase stronger.
+## Conditional references and dependencies
 
-| Dependency | Used for | Install | Without it |
-|---|---|---|---|
-| [agent-council](https://github.com/mgiu96411/agent-council) | Phase 2 design council: tiered adversarial members, deterministic synthesizer, reversibility gate | `/plugin marketplace add mgiu96411/agent-council` | 3 fresh subagents (Skeptic / Pragmatist / Critic) |
-| [Superpowers](https://github.com/obra/superpowers) | Plan-writing conventions, TDD discipline, worktree isolation | `/plugin install superpowers` | Inlined fallback rules per registry row |
-| [ECC](https://github.com/affaan-m/ECC) | Code review format, adversarial verification (santa-method), security reviewer, per-language reviewers | See ECC repo | Fresh generalist reviewer subagents |
-| [codex CLI](https://github.com/openai/codex) | Optional phase-7 cross-vendor review round (large tier only) | `npm i -g @openai/codex` | Skipped — Claude reviewers cover phase 7 |
+The orchestrate entrypoint links execution, review, and learning details when needed. Optional council, planning, TDD, worktree, and reviewer skills retain inlined fallbacks. Only available, applicable dependencies are loaded, once per run. Large tasks require a final independent review by the authorized alternate provider (Claude → Codex, Codex → Claude), counted within the normal review panel. Unavailable or denied reviews remain pending unless explicitly waived by the user; local work continues. Medium tasks use judgment and small tasks retain their bypass. The plan records actual phase participants and evidence; Codex invoking Codex is not cross-provider review.
 
-Unmodified copies of the specific Superpowers and ECC pieces the registry
-references are vendored under `third_party/` (MIT, see
-[THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md)) so you can read exactly
-what the registry expects — or copy them into `~/.claude/skills/` — without
-installing the full plugins. They are frozen at the versions noted there;
-install the upstream plugins for the latest.
-
-### A note on the codex row
-
-The external-review row comes from real use: a 26-round audit where the codex
-CLI reviewed each fix cycle read-only and returned `VERDICT: ACCEPT/REJECT`
-until the diff came back clean. Cross-vendor review catches defects a
-same-family reviewer misses. Caveat baked into the skill: codex reviews code
-only — it never runs tests, so test/build verification stays on the Claude
-side.
-
-## Task board integration
-
-The skill mentions mirroring batch items and linking plans to a task board.
-Any board works (or none) — the intake file under `plans/` is the canonical
-tracker either way.
+Vendored Superpowers and ECC references under `third_party/` remain frozen at the versions in [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md). They are not automatically installed or loaded. Skill-specific host and permission requirements still apply.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Vendored third-party portions keep their
-upstream MIT licenses — see [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
+MIT — see [LICENSE](LICENSE). Vendored third-party components retain their licenses in [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
