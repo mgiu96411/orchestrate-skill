@@ -1,7 +1,7 @@
 {
   "name": "orchestrate",
   "version": "1.0.0",
-  "description": "Complexity-triaged orchestration pipeline for complex implementations — batch intake, investigation, design council, spec + spec review, planning, multi-agent implementation, and adversarial review with an optional codex cross-vendor round.",
+  "description": "Complexity-triaged orchestration for complex implementations and systematic software audits: saved plans, live audit trails, design council, multi-agent implementation, independent review, and automatic alternate-provider final review (Claude <-> Codex) for medium and large implementations.",
   "author": {
     "name": "Giusse Macri",
     "email": "mgiu96411@hotmail.com"
