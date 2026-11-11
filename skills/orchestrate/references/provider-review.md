@@ -28,11 +28,11 @@ codex exec --sandbox read-only -c approval_policy=never --ephemeral \
   > "$EVIDENCE/provider-review-events.jsonl"
 
 # Codex host -> Claude reviewer
-claude -p --permission-mode plan --tools "Read,Grep,Glob" --output-format json \
+claude -p --autocompact 200k --permission-mode plan --tools "Read,Grep,Glob" --output-format json \
   < "$EVIDENCE/provider-brief.md" > "$EVIDENCE/provider-review.json"
 ```
 
-The Claude reviewer has no shell, so the brief must point to the saved diff file rather than ask it to run `git`. Add `--skip-git-repo-check` for Codex only when reviewing outside a Git repository. Stderr noise such as unrelated MCP connector errors is not a failure; a non-zero exit, missing output file, or empty result is.
+The Claude reviewer has no shell, so the brief must point to the saved diff file rather than ask it to run `git`. `--autocompact 200k` is the default bound from [execution.md](execution.md) (Worker session length); raise it for one launch only when the diff cannot be reviewed within it, and record why. Add `--skip-git-repo-check` for Codex only when reviewing outside a Git repository. Stderr noise such as unrelated MCP connector errors is not a failure; a non-zero exit, missing output file, or empty result is.
 
 Request concrete findings with trigger, expected/observed behavior, location, and reproduction or code-reading basis. Require acceptance coverage and unresolved limitations. Record the actual provider, model if exposed (`modelUsage` keys in Claude JSON output; Codex event metadata), session/thread identifier (Claude `session_id`, Codex `thread_id`), snapshot identity, and artifact path. A successful process exit, empty reply, or prose claim without a review result is not a pass.
 

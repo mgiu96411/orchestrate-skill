@@ -37,6 +37,16 @@ When existing test infrastructure supports a meaningful behavioral check, reprod
 
 Workers report material expansion before doing it: new abstraction/dependency, changed semantics, persistent/external effect, wider write/verification scope, or two attempts without new relevant evidence. Root chooses continue, simplify, visible deferral, or replanning. Distinguish product, fixture/test, environment, and insufficient-evidence failures.
 
+## Worker session length
+
+This section applies to workers and reviewers run through the headless Claude CLI (`claude -p`). Native Agent workers and Codex internal workers keep their host's own context limits.
+
+A worker's whole history is sent again on every call, so a long-lived session costs more per step than a fresh one. Put `--autocompact 200k` on every headless Claude launch, including each `--resume` (or set `CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000` where the flag is unavailable); otherwise a 1M-window model carries its history up to roughly 967k tokens per call before compacting. When one unit demonstrably needs more simultaneous context, such as a reviewer that must hold a very large diff at once, the root passes a larger value for that launch only (`--autocompact <tokens>`, up to `1M`) and records the value and reason in the plan.
+
+Resume an existing session (`claude -p --resume <id>`) only to continue the unit that session already owns: finishing it after an interruption, correcting its own work, applying a confirmed finding to its own fix, or a report-only continuation. Start a new unit or cluster in a fresh worker, briefed from the plan and the reports already saved; do not resume a finished worker merely to collect a note. When a worker with unfinished work reports compaction or starts re-deriving state it already established, ask it for a handoff note in its evidence file (state, changed paths, decisions, open items, next action), check the note against the actual files and plan, and brief a fresh worker from it.
+
+These limits bound context, not scope: they never drop required work, skip a check, or let a worker's own recheck stand in for independent review.
+
 ## Reports, waiting, and limits
 
 Workers keep full evidence in a file and return a roughly 200–400-word summary: status, changed paths/commit, tests actually run/outcome, caveats/blockers, and report path. Auditors send candidate findings to the root for validation; the root sends confirmed findings to the owner with ID, reproduction, expected behavior, and scope. Ask interrupted workers for report-only continuation before replacement. Auditors never edit product files.
